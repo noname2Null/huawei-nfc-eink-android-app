@@ -29,13 +29,13 @@ public enum PanelType {
         switch(VARIANT){
             default:
             case 1: return row<n/2?2*row:2*n-1-2*row;          // 1 基线：奇偶交错+奇半倒序（原作者推测版）
-            case 2: return row<n/2?row:n-1-row;                 // 2 后半倒序（右COF反接补偿）★照片证据首选
+            case 2: return row<n/2?row:n+n/2-1-row;             // 2 后半倒序原位（右COF反接补偿）★照片证据首选
             case 3: return row<n/2?n/2-1-row:row;               // 3 前半倒序
             case 4: return row<n/2?row+n/2:row-n/2;             // 4 两半交换
             case 5: return n-1-row;                             // 5 全部倒序
             case 6: return row<n/2?2*row:2*(row-n/2)+1;         // 6 奇偶交错（不倒序）
             case 7: return row<n/2?n-1-row:row-n/2;             // 7 交叉：左半倒序进右区，右半直进左区
-            case 8: return row<n/2?row+n/2:n+n/2-1-(row-n/2);   // 8 交叉：左半直进右区，右半倒序进左区
+            case 8: return row<n/2?row+n/2:n-1-row;             // 8 交叉：左半直进右区，右半倒序进左区
         }
     }
     private byte[] map(byte[] raw,boolean inverse) {
