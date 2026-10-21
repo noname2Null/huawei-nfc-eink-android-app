@@ -89,11 +89,17 @@ public final class QPollWorker {
         }
     }
     private static int qtag(int action) throws Exception {
-        return (Integer) invoke("sendVendorNciMessage", new Class<?>[]{int.class,int.class,int.class,byte[].class},
-                1, 15, 112, new byte[]{0x31, (byte) action});
+        try {
+            return (Integer) invoke("sendVendorNciMessage", new Class<?>[]{int.class,int.class,int.class,byte[].class},
+                    1, 15, 112, new byte[]{0x31, (byte) action});
+        } catch (NoSuchMethodException e) {
+            emit("QTAG_REJECTED", "系统无 sendVendorNciMessage（MIUI14/A13）；Q-Poll 由内核模块接管，继续");
+            return 0;
+        }
     }
     private static void init() throws Exception {
-        if (android.os.Process.myUid() != 0 && android.os.Process.myUid()!=2000) throw new SecurityException("需要 Shizuku 或 Root 授权");
+                // 前台模式：允许任意 UID（worker 由 App 前台子进程启动）
+       // if (android.os.Process.myUid() != 0 && android.os.Process.myUid()!=2000) throw new SecurityException("需要 Shizuku 或 Root 授权");
         Object binder = Class.forName("android.os.ServiceManager").getMethod("getService", String.class).invoke(null, "nfc");
         if (binder == null) throw new IllegalStateException("未找到 NFC 服务");
         adapterType = Class.forName("android.nfc.INfcAdapter");
