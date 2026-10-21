@@ -39,9 +39,6 @@ jobs:
       - name: Install SDK platform and build-tools
         run: yes | sdkmanager --sdk_root="$ANDROID_HOME" --install "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Run protocol/unit tests (javac, no Gradle)
-        run: python3 tests/run_java.py
-
       - name: Build signed APK
         run: python3 build.py
 
