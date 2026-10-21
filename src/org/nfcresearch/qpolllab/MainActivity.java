@@ -93,7 +93,7 @@ public final class MainActivity extends Activity {
         page.addView(text("芯片信息来自当前系统配置；能力以实际寻卡命令与控制器响应为准。",12,0xff68766e));
         section(page,"授权方式");RadioGroup backend=new RadioGroup(this);backend.setOrientation(RadioGroup.HORIZONTAL);
         RadioButton shizuku=new RadioButton(this);shizuku.setId(View.generateViewId());shizuku.setText("Shizuku · 免 Root");backend.addView(shizuku);idleControls.add(shizuku);
-        useRoot=new RadioButton(this);useRoot.setId(View.generateViewId());useRoot.setText("Root");backend.addView(useRoot);idleControls.add(useRoot);page.addView(backend);backend.check(shizuku.getId());
+        useRoot=new RadioButton(this);useRoot.setId(View.generateViewId());useRoot.setText("前台 · 免授权");backend.addView(useRoot);idleControls.add(useRoot);page.addView(backend);backend.check(shizuku.getId());
         page.addView(action("Shizuku 授权 / 连接",v->connectShizuku()));
         page.addView(text("先启动 Shizuku 再授权；已 Root 的手机也可直接选择 Root。",12,0xff68766e));
         page.addView(action("检查芯片 / NFC",v->start("inspect")));
@@ -244,7 +244,7 @@ public final class MainActivity extends Activity {
             +mode+" "+seconds+" "+quote(sessionStop.getAbsolutePath())+" "+quote(new File(getFilesDir(),"session.lock").getAbsolutePath())+(panel?" "+quote(jobFile.getAbsolutePath()):"");
         new Thread(()->{try{
             if(!rootMode){runBridge(mode,seconds,jobFile,imageFile,sessionStop);return;}
-            Process child=new ProcessBuilder("su","-c",command).redirectErrorStream(true).start();
+            Process child=new ProcessBuilder("/system/bin/sh","-c",command).redirectErrorStream(true).start();
             Thread watchdog=new Thread(()->{try{if(!child.waitFor(mode.equals("refresh")?320:140,TimeUnit.SECONDS)){sessionStop.createNewFile();main.post(()->append("执行超时，已请求停止。"));if(!child.waitFor(10,TimeUnit.SECONDS))child.destroy();}}catch(Exception ignored){}},"root-watchdog");watchdog.setDaemon(true);watchdog.start();
             try(BufferedReader in=new BufferedReader(new InputStreamReader(child.getInputStream(),"UTF-8"))){String line;while((line=in.readLine())!=null){final String value=line;main.post(()->{if(!destroyed)event(value);});}}
             int code=child.waitFor();if(code!=0)main.post(()->{if(!destroyed){append("进程退出码="+code);if(!terminal){state.setText("执行未成功");detail.setText("请检查 Root 授权与日志。");}}});
