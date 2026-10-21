@@ -14,7 +14,7 @@ public enum PanelType {
     A0, A1;
 
     /** <<<<<< A0 校准：测试只改这一个数字（1~8）>>>>>> */
-    private static final int VARIANT = 2;
+    private static final int VARIANT = 3;
 
     public static PanelType parse(String value) {
         if("A0".equals(value))return A0;
