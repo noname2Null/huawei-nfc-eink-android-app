@@ -79,6 +79,7 @@ public final class PanelProtocol {
             if(actual==null||actual.length==0)continue;
             boolean matches=tags[i]==0xD1?actual[0]==1:Arrays.equals(actual,expected[i]);
             if(tags[i]==0xA1&&Arrays.equals(actual,hex("01120030FFFFFF")))matches=true;
+            if(tags[i]==0xC0&&Arrays.equals(actual,hex("00000001")))matches=true; // A0 板(SE0398NZ07-FND-A0)实测配置
             if(!matches)mismatch.append(String.format("\n%02X%s：期望=%s，实际=%s",tags[i],tags[i]==0xD1?" 首字节":"",toHex(expected[i]),toHex(actual)));
         }
         if(mismatch.length()>0)
