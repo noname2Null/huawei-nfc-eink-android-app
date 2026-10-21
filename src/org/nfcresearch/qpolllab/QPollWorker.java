@@ -77,11 +77,16 @@ public final class QPollWorker {
             throw e;
         }
     }
-    private static void reader(int flags) throws Exception {
+       private static void reader(int flags) throws Exception {
         Bundle extras=new Bundle();
         if("refresh".equals(mode)||"identity".equals(mode))extras.putInt("presence",5000);
-        invoke("setReaderMode", new Class<?>[]{IBinder.class, Class.forName("android.nfc.IAppCallback"),
-                int.class, Bundle.class, String.class}, token, callback, flags, extras, android.os.Process.myUid()==2000?"com.android.shell":"android");
+        try {
+            invoke("setReaderMode", new Class<?>[]{IBinder.class, Class.forName("android.nfc.IAppCallback"),
+                    int.class, Bundle.class, String.class}, token, callback, flags, extras, android.os.Process.myUid()==2000?"com.android.shell":"android");
+        } catch (NoSuchMethodException e) {
+            invoke("setReaderMode", new Class<?>[]{IBinder.class, Class.forName("android.nfc.IAppCallback"),
+                    int.class, Bundle.class}, token, callback, flags, extras);
+        }
     }
     private static int qtag(int action) throws Exception {
         return (Integer) invoke("sendVendorNciMessage", new Class<?>[]{int.class,int.class,int.class,byte[].class},
