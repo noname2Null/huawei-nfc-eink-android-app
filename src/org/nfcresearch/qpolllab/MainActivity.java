@@ -108,9 +108,10 @@ public final class MainActivity extends Activity {
         String savedPanel=getSharedPreferences("refresh-settings",MODE_PRIVATE).getString("panelType","");
         panelType.setSelection(savedPanel.equals("A0")?1:savedPanel.equals("A1")?2:0);page.addView(panelType);
         page.addView(text("按实物选择 A0 或 A1；无法自动识别。更换屏幕后请核对选择。",12,0xff68766e));
-        variantType=spinner(new String[]{"布局1 奇偶交错+奇半倒序","布局2 后半倒序★首选","布局3 前半倒序","布局4 两半交换","布局5 全部倒序","布局6 奇偶交错(不倒序)","布局7 交叉·左倒右直","布局8 交叉·左直右倒"});
-        variantType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("panelVariant",1));page.addView(variantType);
-        page.addView(text("A0 布局校准：默认布局2；画面不对时在发送前逐一切换试刷，无需重新构建。",12,0xff68766e));
+        variantType=spinner(new String[]{"布局1 ★挤压-镜像修正","布局2 交叉反向","布局3 基线交错+奇半倒","布局4 恒等(=A1)","布局5 前后半均倒序","布局6 奇偶交错不倒序","布局7 前正后倒交叉","布局8 前倒后正交叉"});
+        variantType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("panelVariant",0));page.addView(variantType);
+        page.addView(text("A0 布局校准：默认布局1（标记图验证公式）；画面不对时逐一切换试刷，无需重新构建。",12,0xff68766e));
+
         preview=new PixelPreview(this);preview.setContentDescription("最终写入像素预览，仅黑白黄红；点击放大 · 双指缩放");page.addView(preview,new LinearLayout.LayoutParams(-1,dp(250)));
         preview.setOnClickListener(v->showPixels());
         refresh=action("发送当前预览到墨水屏",v->confirmRefresh());refresh.setTextColor(Color.WHITE);refresh.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xff176b61));page.addView(refresh);
