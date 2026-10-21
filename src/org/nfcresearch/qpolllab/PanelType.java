@@ -13,8 +13,8 @@ package org.nfcresearch.qpolllab;
 public enum PanelType {
     A0, A1;
 
-    /** <<<<<< A0 校准：测试只改这一个数字（1~8）>>>>>> */
-    private static final int VARIANT = 3;
+    /** A0 布局校准值（1~8），由 MainActivity 的"布局"下拉框在运行时设置。 */
+    public static int variant = 2;
 
     public static PanelType parse(String value) {
         if("A0".equals(value))return A0;
@@ -26,7 +26,7 @@ public enum PanelType {
     }
     /** A0 流内 552 个"列段"（每段 192 字节）的重排目标位置。 */
     private static int target(int row,int n){
-        switch(VARIANT){
+        switch(variant){
             default:
             case 1: return row<n/2?2*row:2*n-1-2*row;          // 1 基线：奇偶交错+奇半倒序（原作者推测版）
             case 2: return row<n/2?row:n+n/2-1-row;             // 2 后半倒序原位（右COF反接补偿）★照片证据首选
