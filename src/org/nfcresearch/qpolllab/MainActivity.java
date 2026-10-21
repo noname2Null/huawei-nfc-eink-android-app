@@ -33,7 +33,7 @@ public final class MainActivity extends Activity {
     private PixelPreview preview;
     private ProgressBar progress;
     private Button refresh,stop;
-    private Spinner duration,fit,power,poll,blocks,panelType,variantType;
+    private Spinner duration,fit,power,poll,blocks,panelType,variantType,qualityType;
     private CheckBox dither,binary;
     private SeekBar threshold;
     private Bitmap source,originalSource;
@@ -111,7 +111,9 @@ public final class MainActivity extends Activity {
         variantType=spinner(new String[]{"布局1 ★挤压-镜像修正","布局2 交叉反向","布局3 基线交错+奇半倒","布局4 恒等(=A1)","布局5 前后半均倒序","布局6 奇偶交错不倒序","布局7 前正后倒交叉","布局8 前倒后正交叉"});
         variantType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("panelVariant",0));page.addView(variantType);
         page.addView(text("A0 布局校准：默认布局1（标记图验证公式）；画面不对时逐一切换试刷，无需重新构建。",12,0xff68766e));
-
+        qualityType=spinner(new String[]{"画质 原始","画质 更细腻(蛇形)","画质 更还原(暖调)"});
+        qualityType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("imageQuality",1));page.addView(qualityType);
+        page.addView(text("画质：更细腻=蛇形扫描去蠕虫纹；更还原=暖调内容优先黄墨、肤色更自然。",12,0xff68766e));
         preview=new PixelPreview(this);preview.setContentDescription("最终写入像素预览，仅黑白黄红；点击放大 · 双指缩放");page.addView(preview,new LinearLayout.LayoutParams(-1,dp(250)));
         preview.setOnClickListener(v->showPixels());
         refresh=action("发送当前预览到墨水屏",v->confirmRefresh());refresh.setTextColor(Color.WHITE);refresh.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xff176b61));page.addView(refresh);
@@ -146,6 +148,7 @@ public final class MainActivity extends Activity {
         blocks.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){getSharedPreferences("refresh-settings",MODE_PRIVATE).edit().putInt("blockSize",blockSizes[pos]).apply();if(pos>0)dither.setChecked(false);prepare();}public void onNothingSelected(AdapterView<?> p){}});
         panelType.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){getSharedPreferences("refresh-settings",MODE_PRIVATE).edit().putString("panelType",selectedPanelType()).apply();prepare();}public void onNothingSelected(AdapterView<?> p){}});
         variantType.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){getSharedPreferences("refresh-settings",MODE_PRIVATE).edit().putInt("panelVariant",pos).apply();prepare();}public void onNothingSelected(AdapterView<?> p){}});
+                qualityType.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){getSharedPreferences("refresh-settings",MODE_PRIVATE).edit().putInt("imageQuality",pos).apply();prepare();}public void onNothingSelected(AdapterView<?> p){}});
         fit.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){prepare();}public void onNothingSelected(AdapterView<?> p){}});
         page.addView(action("只读检查屏幕",v->start("identity")));
         page.addView(text("支持相同原厂配置的 552×768 四色屏。发送时持续贴合并保持应用在前台；切换本应用内的页面不会中断操作。",12,0xff68766e));
@@ -182,7 +185,7 @@ public final class MainActivity extends Activity {
         if(source==null||busy||destroyed||editingCrop)return;
         final int token=++revision,angle=rotation,block=blockSizes[blocks.getSelectedItemPosition()],level=threshold.getProgress();final boolean cover=fit.getSelectedItemPosition()==1,noise=dither.isChecked(),mono=binary.isChecked(),hasCrop=cropped;final Bitmap input=source;final String chosenPanel=selectedPanelType();
         prepared=null;preparing=true;controls();imageInfo.setText("正在生成四色预览…");
-        new Thread(()->{try{PanelType.variant=variantType.getSelectedItemPosition()+1;PanelImage.Prepared image=PanelImage.prepare(input,angle,cover,noise,block,mono,level,hasCrop,chosenPanel);
+        new Thread(()->{try{PanelType.variant=variantType.getSelectedItemPosition()+1;PanelImage.Prepared image=PanelImage.prepare(input,angle,cover,noise,block,mono,level,hasCrop,chosenPanel,qualityType.getSelectedItemPosition());
             main.post(()->{if(token!=revision||destroyed)return;prepared=image;preview.setImage(image.preview);imageInfo.setText(imageName+" · 552×768 · "+image.packed.length+" 字节\n"+image.settings);preparing=false;controls();});
         }catch(Throwable e){main.post(()->{if(token!=revision||destroyed)return;preparing=false;controls();imageInfo.setText("预览失败："+e.getMessage());});}},"image-preview").start();
     }
