@@ -5,12 +5,7 @@ public final class ImageRaster {
     private static final int[] COLORS={0xff000000,0xffffffff,0xfff5cd00,0xffc80000};
     public static int color(int code){if(code<0||code>3)throw new IllegalArgumentException("颜色码错误");return COLORS[code];}
     public static byte[] quantize(int[] pixels,int width,int height,boolean binary,int threshold,boolean dither,int block){
-        return quantize(pixels,width,height,binary,threshold,dither,block,0);
-    }
-    /** quality: 0=原始；1=消噪·细腻(蛇形扫描+去孤点，量化前需在PanelImage做轻模糊)；2=还原·色彩(感知加权+暖调黄墨门限，量化前需做饱和度拉升)。 */
-    public static byte[] quantize(int[] pixels,int width,int height,boolean binary,int threshold,boolean dither,int block,int quality){
-        if(width<=0||height<=0||(long)width*height!=pixels.length||threshold<0||threshold>255)
-            throw new IllegalArgumentException("图片参数错误");
+        if(width<=0||height<=0||(long)width*height!=pixels.length||threshold<0||threshold>255)throw new IllegalArgumentException("图片参数错误");
         if(block>1) {
             if(!binary)return ImageBlocks.quantize(pixels,width,height,block,COLORS);
             if(block!=2&&block!=4&&block!=8&&block!=16)throw new IllegalArgumentException("色块参数错误");
@@ -27,13 +22,11 @@ public final class ImageRaster {
         byte[] codes=new byte[pixels.length];
         float[][] current=new float[3][width+2],next=new float[3][width+2];
         for(int y=0;y<height;y++) {
-            boolean ltr=quality<1||(y%2==0);
-            for(int xi=0;xi<width;xi++) {
-                int x=ltr?xi:width-1-xi;
+            for(int x=0;x<width;x++) {
                 int index=y*width+x,p=pixels[index],best=0;
                 if(binary) {
                     float value=clamp(luma(p)+(dither?current[0][x+1]:0));best=value>=threshold?1:0;
-                    if(dither){float e=value-(best==1?255:0);if(ltr)spreadR(current[0],next[0],x,e);else spreadL(current[0],next[0],x,e);}
+                    if(dither){float e=value-(best==1?255:0);spread(current[0],next[0],x,e);}
                 } else {
                     float r=clamp(((p>>>16)&255)+(dither?current[0][x+1]:0));
                     float g=clamp(((p>>>8)&255)+(dither?current[1][x+1]:0));
@@ -41,46 +34,22 @@ public final class ImageRaster {
                     float score=Float.MAX_VALUE;
                     for(int k=0;k<4;k++){int c=COLORS[k];
                         float dr=r-((c>>>16)&255),dg=g-((c>>>8)&255),db=b-(c&255);
-                        float s;
-                        if(quality==2){
-                            s=0.9f*dr*dr+1.3f*dg*dg+0.1225f*db*db;
-                            if(k==2){float warm=r-b;s*=1f+1.2f*Math.max(0f,60f-warm)/60f;}
-                        }else{
-                            s=dr*dr+dg*dg+db*db;
-                        }
+                        float s=dr*dr+dg*dg+db*db;
                         if(s<score){score=s;best=k;}
                     }
                     if(dither){int c=COLORS[best];
-                        float er=r-((c>>>16)&255),eg=g-((c>>>8)&255),eb=b-(c&255);
-                        if(ltr){spreadR(current[0],next[0],x,er);spreadR(current[1],next[1],x,eg);spreadR(current[2],next[2],x,eb);}
-                        else{spreadL(current[0],next[0],x,er);spreadL(current[1],next[1],x,eg);spreadL(current[2],next[2],x,eb);}
+                        spread(current[0],next[0],x,r-((c>>>16)&255));
+                        spread(current[1],next[1],x,g-((c>>>8)&255));
+                        spread(current[2],next[2],x,b-(c&255));
                     }
                 }
                 codes[index]=(byte)best;
             }
             float[][] old=current;current=next;next=old;for(float[] channel:next)java.util.Arrays.fill(channel,0);
         }
-        if(!binary&&dither&&quality>=1)despeckle(codes,width,height);
         return codes;
     }
-    /** 去孤点：4邻域中≥3个为同一颜色且本点不同，则并入多数色。两遍。 */
-    private static void despeckle(byte[] codes,int width,int height){
-        for(int pass=0;pass<2;pass++){
-            byte[] src=codes.clone();
-            for(int y=0;y<height;y++)for(int x=0;x<width;x++){
-                int i=y*width+x,c=src[i]&255;
-                int[] count=new int[4];
-                if(y>0)count[src[i-width]&255]++;
-                if(y<height-1)count[src[i+width]&255]++;
-                if(x>0)count[src[i-1]&255]++;
-                if(x<width-1)count[src[i+1]&255]++;
-                int maj=0;for(int k=1;k<4;k++)if(count[k]>count[maj])maj=k;
-                if(c!=maj&&count[maj]>=3)codes[i]=(byte)maj;
-            }
-        }
-    }
-    private static void spreadR(float[] current,float[] next,int x,float error){current[x+2]+=error*7/16;next[x]+=error*3/16;next[x+1]+=error*5/16;next[x+2]+=error/16;}
-    private static void spreadL(float[] current,float[] next,int x,float error){current[x]+=error*7/16;next[x+2]+=error*3/16;next[x+1]+=error*5/16;next[x]+=error/16;}
+    private static void spread(float[] current,float[] next,int x,float error){current[x+2]+=error*7/16;next[x]+=error*3/16;next[x+1]+=error*5/16;next[x+2]+=error/16;}
     private static float luma(int p){return (299*((p>>>16)&255)+587*((p>>>8)&255)+114*(p&255))/1000f;}
     private static float clamp(float value){return Math.max(0,Math.min(255,value));}
     public static int[] preview(byte[] packed,int width,int height) {
