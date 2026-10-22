@@ -114,10 +114,10 @@ public final class MainActivity extends Activity {
         qualityType=spinner(new String[]{"画质 原始","画质 消噪·细腻","画质 还原·色彩"});
         qualityType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("imageQuality",1));page.addView(qualityType);
         page.addView(text("画质：更细腻=蛇形扫描去蠕虫纹；更还原=暖调内容优先黄墨、肤色更自然。",12,0xff68766e));
-                denoiseType=spinner(new String[]{"消噪 轻微","消噪 标准","消噪 强"});
+                        denoiseType=spinner(new String[]{"消噪 关(原样)","消噪 弱·模糊1遍","消噪 中·模糊2遍","消噪 强·模糊3遍"});
         denoiseType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("denoiseLevel",1));page.addView(denoiseType);
-        colorType=spinner(new String[]{"色彩 清淡","色彩 标准","色彩 浓艳"});
-        colorType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("colorLevel",1));page.addView(colorType);
+                colorType=spinner(new String[]{"色彩 关(原样)","色彩 微×1.1","色彩 轻×1.2","色彩 中×1.3"});
+        colorType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("colorLevel",0));page.addView(colorType);
         page.addView(text("消噪强度作用于「画质·消噪」档；色彩浓度作用于「画质·还原」档。",12,0xff68766e));
         preview=new PixelPreview(this);preview.setContentDescription("最终写入像素预览，仅黑白黄红；点击放大 · 双指缩放");page.addView(preview,new LinearLayout.LayoutParams(-1,dp(250)));
         preview.setOnClickListener(v->showPixels());
