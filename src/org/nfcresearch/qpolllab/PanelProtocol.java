@@ -84,7 +84,6 @@ public final class PanelProtocol {
         }
         if(mismatch.length()>0)
             throw new IllegalArgumentException("目标配置与已验证的原厂扫描配置不匹配；不会改写 DB/DA"+mismatch);
-        // UID is diagnostic only; any compatible screen may be used, with no ID allowlist.
         return new Info(fields);
     }
     /** Four vertical pixels per byte, right-to-left, bottom-to-top, MSB first. */
@@ -114,9 +113,12 @@ public final class PanelProtocol {
         packet[3]=(byte)(offset+count==compressed.length?1:0);packet[4]=(byte)(count+2);
         packet[5]=(byte)block;packet[6]=(byte)sub;System.arraycopy(compressed,offset,packet,7,count);return packet;
     }
-    public static byte[] d4(int powerMs) {
+    public static byte[] d4(int powerMs) { return d4(powerMs,(byte)0x80); }
+    /** mode 为 D4 模式字节：0x80=原厂完整刷新(含黑白清屏)；其它值为实验位(社区无文档)，
+     *  未知值可能使刷新挂起——重新贴屏(场强复位)即可恢复，不涉及 DB/DA 写入。 */
+    public static byte[] d4(int powerMs,byte mode) {
         if(powerMs<100||powerMs>12700||powerMs%100!=0)throw new IllegalArgumentException("上电等待参数错误");
-        return new byte[]{(byte)0xF0,(byte)0xD4,(byte)(0x80|powerMs/100),(byte)0x80,0};
+        return new byte[]{(byte)0xF0,(byte)0xD4,(byte)(0x80|powerMs/100),mode,0};
     }
     private final Transport transport;
     private final Control control;
@@ -125,7 +127,6 @@ public final class PanelProtocol {
         control.check();
         byte[] response=transport.exchange(cmd,timeout);
         int sw=status(response);
-        // Never emit the authentication payload or image content into logs.
         if(cmd[1]!=(byte)0xD3&&cmd[1]!=(byte)0xDE)control.event("APDU",label+"：SW="+String.format("%04X",sw));
         if(checkStatus)requireOk(response,label);
         return response;
@@ -140,10 +141,12 @@ public final class PanelProtocol {
         Info info=parseInfo(exchange(D1,"D1",5000,true));
         control.event("IDENTITY",info.description());return info;
     }
-    public boolean write(byte[] packed,int powerMs,int pollMs) throws Exception {
+    public boolean write(byte[] packed,int powerMs,int pollMs) throws Exception { return write(packed,powerMs,pollMs,0x80,0); }
+    /** d4mode：D4 模式字节；d4retry：传图成功后、刷新阶段失败时仅重发 D4 的次数（不重建连接、不重传图片）。 */
+    public boolean write(byte[] packed,int powerMs,int pollMs,int d4mode,int d4retry) throws Exception {
         if(packed.length!=IMAGE_BYTES)throw new IllegalArgumentException("图像必须为 105984 字节");
         if(pollMs<0||pollMs>500)throw new IllegalArgumentException("忙状态查询间隔必须为 0–500 ms");
-        byte[] refresh=d4(powerMs); // Validate every option before any authentication/write.
+        d4(powerMs,(byte)d4mode); // Validate every option before any authentication/write.
         control.event("TIMING","忙状态查询间隔="+pollMs+" ms（每次应答后等待）");
         Info initial=identify();
         packed=PanelType.forScan(packed,initial.topDown());
@@ -155,7 +158,6 @@ public final class PanelProtocol {
             exchange(PIN,"验证已公开的默认 PIN（仅一次）",5000,true);
             exchange(D8,"D8 再次检查",5000,true);
         } else requireOk(access,"D8 权限查询");
-        // Check the same factory profile again; no DB/DA configuration writes exist here.
         Info rechecked=parseInfo(exchange(D1,"D1 写入前复核",5000,true));
         if(initial.topDown()!=rechecked.topDown())throw new IllegalArgumentException("扫描配置在会话中发生变化，未传图");
         control.event("STAGE","uploading|正在传输图片，请保持贴合");
@@ -173,8 +175,22 @@ public final class PanelProtocol {
             }
         }
         control.event("STAGE","refreshing|图片已传完，正在启动屏幕刷新");
-        control.check();
-        requireOk(exchange(refresh,"D4 刷新（上电等待 "+powerMs+" ms）",8000,true),"D4");
+        int attempt=0;
+        while(true){
+            try{
+                control.check();
+                requireOk(exchange(d4(powerMs,(byte)d4mode),"D4 刷新（上电等待 "+powerMs+" ms · 模式 "+String.format("%02X",d4mode&255)+(attempt>0?" · 第 "+(attempt+1)+" 次":"")+"）",8000,true),"D4");
+                return pollUntilDone(pollMs);
+            }catch(InterruptedException e){throw e;}
+            catch(IllegalStateException e){throw e;}
+            catch(Exception e){
+                if(attempt>=d4retry)throw e;
+                attempt++;
+                control.event("RETRY","刷新阶段失败（"+e.getMessage()+"）；仅重发 D4（"+attempt+"/"+d4retry+"），不重传图片");
+            }
+        }
+    }
+    private boolean pollUntilDone(int pollMs)throws Exception {
         long started=control.now(),deadline=started+90000;
         boolean busySeen=false;int idle=0;Boolean previous=null;
         control.event("STAGE","polling|保持贴合供能，等待屏幕刷新");
