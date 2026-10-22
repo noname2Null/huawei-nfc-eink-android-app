@@ -73,8 +73,8 @@ public final class PanelImage {
         canvas.drawBitmap(input,null,new RectF((552-w)/2,(768-h)/2,(552+w)/2,(768+h)/2),new Paint(Paint.FILTER_BITMAP_FLAG));
         int[] pixels=new int[552*768];
         fitted.getPixels(pixels,0,552,0,0,552,768);
-        if(quality==1)pixels=blur(pixels,552,768);
-        else if(quality==2)pixels=saturate(pixels,1.35f);
+        if(quality==1)pixels=blur(blur(pixels,552,768),552,768);
+        else if(quality==2)pixels=saturate(pixels,1.4f);
         byte[] codes=ImageRaster.quantize(pixels,552,768,binary,threshold,dither,block,quality);
         PanelType type=panelType.isEmpty()?PanelType.A1:PanelType.parse(panelType);
         byte[] packed=type.pack(codes);
