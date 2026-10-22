@@ -33,7 +33,7 @@ public final class MainActivity extends Activity {
     private PixelPreview preview;
     private ProgressBar progress;
     private Button refresh,stop;
-    private Spinner duration,fit,power,poll,blocks,panelType,variantType,qualityType,denoiseType,colorType;
+    private Spinner duration,fit,power,poll,blocks,panelType,variantType,denoiseType,colorType,d4modeType,d4retryType;
     private CheckBox dither,binary;
     private SeekBar threshold;
     private Bitmap source,originalSource;
@@ -111,14 +111,15 @@ public final class MainActivity extends Activity {
         variantType=spinner(new String[]{"布局1 ★挤压-镜像修正","布局2 交叉反向","布局3 基线交错+奇半倒","布局4 恒等(=A1)","布局5 前后半均倒序","布局6 奇偶交错不倒序","布局7 前正后倒交叉","布局8 前倒后正交叉"});
         variantType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("panelVariant",1));page.addView(variantType);
         page.addView(text("A0 布局校准：默认布局1（标记图验证公式）；画面不对时逐一切换试刷，无需重新构建。",12,0xff68766e));
-        qualityType=spinner(new String[]{"画质 原始","画质 消噪·细腻","画质 还原·色彩"});
-        qualityType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("imageQuality",1));page.addView(qualityType);
-        page.addView(text("画质：更细腻=蛇形扫描去蠕虫纹；更还原=暖调内容优先黄墨、肤色更自然。",12,0xff68766e));
-                        denoiseType=spinner(new String[]{"消噪 关(原样)","消噪 弱·模糊1遍","消噪 中·模糊2遍","消噪 强·模糊3遍"});
+        denoiseType=spinner(new String[]{"消噪 关(原样)","消噪 弱·模糊1遍","消噪 中·模糊2遍","消噪 强·模糊3遍"});
         denoiseType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("denoiseLevel",0));page.addView(denoiseType);
                 colorType=spinner(new String[]{"色彩 关(原样)","色彩 微×1.1","色彩 轻×1.2","色彩 中×1.3"});
         colorType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("colorLevel",0));page.addView(colorType);
-        page.addView(text("消噪强度作用于「画质·消噪」档；色彩浓度作用于「画质·还原」档。",12,0xff68766e));
+        d4modeType=spinner(new String[]{"D4模式 完整刷新(80)","D4模式 实验1(00)","D4模式 实验2(01)","D4模式 实验3(81)"});
+        d4modeType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("d4modeIdx",0));page.addView(d4modeType);
+        d4retryType=spinner(new String[]{"D4失败仅重发 关","D4失败仅重发 1次","D4失败仅重发 2次"});
+        d4retryType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("d4retryIdx",1));page.addView(d4retryType);
+        page.addView(text("D4模式为实验位：非80值可能挂起刷新，重贴复位即可。重试仅在传图成功后生效。",12,0xff68766e));
         preview=new PixelPreview(this);preview.setContentDescription("最终写入像素预览，仅黑白黄红；点击放大 · 双指缩放");page.addView(preview,new LinearLayout.LayoutParams(-1,dp(250)));
         preview.setOnClickListener(v->showPixels());
         refresh=action("发送当前预览到墨水屏",v->confirmRefresh());refresh.setTextColor(Color.WHITE);refresh.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xff176b61));page.addView(refresh);
@@ -153,7 +154,7 @@ public final class MainActivity extends Activity {
         blocks.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){getSharedPreferences("refresh-settings",MODE_PRIVATE).edit().putInt("blockSize",blockSizes[pos]).apply();if(pos>0)dither.setChecked(false);prepare();}public void onNothingSelected(AdapterView<?> p){}});
         panelType.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){getSharedPreferences("refresh-settings",MODE_PRIVATE).edit().putString("panelType",selectedPanelType()).apply();prepare();}public void onNothingSelected(AdapterView<?> p){}});
         variantType.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){getSharedPreferences("refresh-settings",MODE_PRIVATE).edit().putInt("panelVariant",pos).apply();prepare();}public void onNothingSelected(AdapterView<?> p){}});
-                qualityType.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){getSharedPreferences("refresh-settings",MODE_PRIVATE).edit().putInt("imageQuality",pos).apply();prepare();}public void onNothingSelected(AdapterView<?> p){}});
+               
         fit.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> p,View v,int pos,long id){prepare();}public void onNothingSelected(AdapterView<?> p){}});
         page.addView(action("只读检查屏幕",v->start("identity")));
         page.addView(text("支持相同原厂配置的 552×768 四色屏。发送时持续贴合并保持应用在前台；切换本应用内的页面不会中断操作。",12,0xff68766e));
@@ -190,7 +191,7 @@ public final class MainActivity extends Activity {
         if(source==null||busy||destroyed||editingCrop)return;
         final int token=++revision,angle=rotation,block=blockSizes[blocks.getSelectedItemPosition()],level=threshold.getProgress();final boolean cover=fit.getSelectedItemPosition()==1,noise=dither.isChecked(),mono=binary.isChecked(),hasCrop=cropped;final Bitmap input=source;final String chosenPanel=selectedPanelType();
         prepared=null;preparing=true;controls();imageInfo.setText("正在生成四色预览…");
-        new Thread(()->{try{PanelType.variant=variantType.getSelectedItemPosition()+1;PanelImage.Prepared image=PanelImage.prepare(input,angle,cover,noise,block,mono,level,hasCrop,chosenPanel,qualityType.getSelectedItemPosition(),denoiseType.getSelectedItemPosition(),colorType.getSelectedItemPosition());
+        new Thread(()->{try{PanelType.variant=variantType.getSelectedItemPosition()+1;PanelImage.Prepared image=PanelImage.prepare(input,angle,cover,noise,block,mono,level,hasCrop,chosenPanel,denoiseType.getSelectedItemPosition(),colorType.getSelectedItemPosition());
             main.post(()->{if(token!=revision||destroyed)return;prepared=image;preview.setImage(image.preview);imageInfo.setText(imageName+" · 552×768 · "+image.packed.length+" 字节\n"+image.settings);preparing=false;controls();});
         }catch(Throwable e){main.post(()->{if(token!=revision||destroyed)return;preparing=false;controls();imageInfo.setText("预览失败："+e.getMessage());});}},"image-preview").start();
     }
@@ -245,7 +246,7 @@ public final class MainActivity extends Activity {
             new FileOutputStream(new File(getFilesDir(),"session.lock"),true).close();
             if(panel){JSONObject job=new JSONObject();
                 if(mode.equals("refresh")){byte[] image=prepared.packed.clone();try(FileOutputStream out=new FileOutputStream(imageFile)){out.write(image);}String sha=PanelProtocol.toHex(MessageDigest.getInstance("SHA-256").digest(image));
-                    job.put("panelType",prepared.panelType);job.put("imageFile",imageFile.getAbsolutePath());job.put("sha256",sha);job.put("powerMs",powerTimes[power.getSelectedItemPosition()]);job.put("pollMs",pollTimes[poll.getSelectedItemPosition()]);append("图片参数："+prepared.settings);append("预览快照 SHA-256="+sha);}
+                    job.put("panelType",prepared.panelType); job.put("d4mode",d4modeType.getSelectedItemPosition()==0?0x80:new int[]{0x00,0x01,0x81}[d4modeType.getSelectedItemPosition()-1]); job.put("d4retry",d4retryType.getSelectedItemPosition());job.put("imageFile",imageFile.getAbsolutePath());job.put("sha256",sha);job.put("powerMs",powerTimes[power.getSelectedItemPosition()]);job.put("pollMs",pollTimes[poll.getSelectedItemPosition()]);append("图片参数："+prepared.settings);append("预览快照 SHA-256="+sha);}
                 try(FileOutputStream out=new FileOutputStream(jobFile)){out.write(job.toString().getBytes("UTF-8"));}}
         }catch(Exception e){append("准备失败："+e);imageFile.delete();jobFile.delete();return;}
         if(mode.equals("qtag"))capabilityInfo.setText("Q-Poll：测试中，等待实际寻卡命令与响应…");
