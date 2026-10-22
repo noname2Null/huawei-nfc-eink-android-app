@@ -111,7 +111,7 @@ public final class MainActivity extends Activity {
         variantType=spinner(new String[]{"布局1 ★挤压-镜像修正","布局2 交叉反向","布局3 基线交错+奇半倒","布局4 恒等(=A1)","布局5 前后半均倒序","布局6 奇偶交错不倒序","布局7 前正后倒交叉","布局8 前倒后正交叉"});
         variantType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("panelVariant",0));page.addView(variantType);
         page.addView(text("A0 布局校准：默认布局1（标记图验证公式）；画面不对时逐一切换试刷，无需重新构建。",12,0xff68766e));
-        qualityType=spinner(new String[]{"画质 原始","画质 更细腻(蛇形)","画质 更还原(暖调)"});
+        qualityType=spinner(new String[]{"画质 原始","画质 消噪·细腻","画质 还原·色彩"});
         qualityType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("imageQuality",1));page.addView(qualityType);
         page.addView(text("画质：更细腻=蛇形扫描去蠕虫纹；更还原=暖调内容优先黄墨、肤色更自然。",12,0xff68766e));
         preview=new PixelPreview(this);preview.setContentDescription("最终写入像素预览，仅黑白黄红；点击放大 · 双指缩放");page.addView(preview,new LinearLayout.LayoutParams(-1,dp(250)));
