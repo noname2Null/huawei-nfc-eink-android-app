@@ -7,7 +7,7 @@ public final class ImageRaster {
     public static byte[] quantize(int[] pixels,int width,int height,boolean binary,int threshold,boolean dither,int block){
         return quantize(pixels,width,height,binary,threshold,dither,block,0);
     }
-    /** quality: 0=原始；1=更细腻(蛇形扫描)；2=更还原(感知加权+暖调黄墨门限)。 */
+    /** quality: 0=原始；1=消噪·细腻(蛇形扫描+去孤点，量化前需在PanelImage做轻模糊)；2=还原·色彩(感知加权+暖调黄墨门限，量化前需做饱和度拉升)。 */
     public static byte[] quantize(int[] pixels,int width,int height,boolean binary,int threshold,boolean dither,int block,int quality){
         if(width<=0||height<=0||(long)width*height!=pixels.length||threshold<0||threshold>255)
             throw new IllegalArgumentException("图片参数错误");
@@ -60,7 +60,24 @@ public final class ImageRaster {
             }
             float[][] old=current;current=next;next=old;for(float[] channel:next)java.util.Arrays.fill(channel,0);
         }
+        if(!binary&&dither&&quality>=1)despeckle(codes,width,height);
         return codes;
+    }
+    /** 去孤点：4邻域中≥3个为同一颜色且本点不同，则并入多数色。两遍。 */
+    private static void despeckle(byte[] codes,int width,int height){
+        for(int pass=0;pass<2;pass++){
+            byte[] src=codes.clone();
+            for(int y=0;y<height;y++)for(int x=0;x<width;x++){
+                int i=y*width+x,c=src[i]&255;
+                int[] count=new int[4];
+                if(y>0)count[src[i-width]&255]++;
+                if(y<height-1)count[src[i+width]&255]++;
+                if(x>0)count[src[i-1]&255]++;
+                if(x<width-1)count[src[i+1]&255]++;
+                int maj=0;for(int k=1;k<4;k++)if(count[k]>count[maj])maj=k;
+                if(c!=maj&&count[maj]>=3)codes[i]=(byte)maj;
+            }
+        }
     }
     private static void spreadR(float[] current,float[] next,int x,float error){current[x+2]+=error*7/16;next[x]+=error*3/16;next[x+1]+=error*5/16;next[x+2]+=error/16;}
     private static void spreadL(float[] current,float[] next,int x,float error){current[x]+=error*7/16;next[x+2]+=error*3/16;next[x+1]+=error*5/16;next[x]+=error/16;}
