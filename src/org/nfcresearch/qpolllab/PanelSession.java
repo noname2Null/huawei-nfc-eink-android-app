@@ -55,7 +55,8 @@ public final class PanelSession {
                 catch(java.io.IOException e){events.emit("APDU_FAILED","INS="+ins+"；连接状态="+iso.isConnected()+"；"+e+"；不会自动重试协议操作");throw e;}
             },control);
             if(mode.equals("identity"))protocol.identify();
-            else protocol.write(image,job.getInt("powerMs"),job.optInt("pollMs",PanelProtocol.DEFAULT_POLL_MS));
+            else protocol.write(image,job.getInt("powerMs"),job.optInt("pollMs",PanelProtocol.DEFAULT_POLL_MS),
+                    job.optInt("d4mode",0x80),job.optInt("d4retry",0));
         } finally {try{iso.close();}catch(Exception e){events.emit("CLOSE_ERROR","关闭 ISO-DEP："+e);}}
     }
     private static byte[] read(File file,int max)throws Exception {
