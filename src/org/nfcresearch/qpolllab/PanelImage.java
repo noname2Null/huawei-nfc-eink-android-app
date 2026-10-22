@@ -63,7 +63,7 @@ public final class PanelImage {
         Matrix rotate=new Matrix();rotate.setRotate(rotation);
         return Bitmap.createBitmap(source,0,0,source.getWidth(),source.getHeight(),rotate,true);
     }
-    /** quality: 0=原始 1=更细腻 2=更还原（详见 ImageRaster.quantize）。 */
+    /** quality: 0=原始；1=消噪·细腻(量化前轻模糊)；2=还原·色彩(量化前饱和度拉升)。 */
     public static Prepared prepare(Bitmap source,int rotation,boolean cover,boolean dither,int block,boolean binary,int threshold,boolean cropped,String panelType,int quality) {
         if(block>1)dither=false;
         Bitmap input=rotated(source,rotation);
@@ -73,11 +73,42 @@ public final class PanelImage {
         canvas.drawBitmap(input,null,new RectF((552-w)/2,(768-h)/2,(552+w)/2,(768+h)/2),new Paint(Paint.FILTER_BITMAP_FLAG));
         int[] pixels=new int[552*768];
         fitted.getPixels(pixels,0,552,0,0,552,768);
+        if(quality==1)pixels=blur(pixels,552,768);
+        else if(quality==2)pixels=saturate(pixels,1.35f);
         byte[] codes=ImageRaster.quantize(pixels,552,768,binary,threshold,dither,block,quality);
         PanelType type=panelType.isEmpty()?PanelType.A1:PanelType.parse(panelType);
         byte[] packed=type.pack(codes);
         Bitmap image=Bitmap.createBitmap(type.preview(packed),552,768,Bitmap.Config.ARGB_8888);
-        String settings="屏幕："+(panelType.isEmpty()?"尚未选择":panelType)+" · "+(binary?"黑白二值化 · 阈值 "+threshold:"黑白黄红四色")+" · 简化："+(block==1?"原始细节":block+"×"+block+" 色块")+" · 抖动："+(dither?"开启":"关闭")+" · 画质："+(quality==0?"原始":quality==1?"更细腻":"更还原")+" · "+(cropped?"已手动裁切 · ":"")+"旋转 "+rotation+"° · "+(cover?"填满":"留白");
+        String settings="屏幕："+(panelType.isEmpty()?"尚未选择":panelType)+" · "+(binary?"黑白二值化 · 阈值 "+threshold:"黑白黄红四色")+" · 简化："+(block==1?"原始细节":block+"×"+block+" 色块")+" · 抖动："+(dither?"开启":"关闭")+" · 画质："+(quality==0?"原始":quality==1?"消噪·细腻":"还原·色彩")+" · "+(cropped?"已手动裁切 · ":"")+"旋转 "+rotation+"° · "+(cover?"填满":"留白");
         return new Prepared(image,packed,settings,panelType);
     }
+    /** [1,2,1]/4 可分离模糊，去高频噪点。 */
+    private static int[] blur(int[] px,int w,int h){
+        int[] tmp=new int[px.length];
+        for(int y=0;y<h;y++){int o=y*w;tmp[o]=px[o];
+            for(int x=1;x<w-1;x++)tmp[o+x]=mix3(px[o+x-1],px[o+x],px[o+x+1]);
+            tmp[o+w-1]=px[o+w-1];}
+        int[] out=new int[px.length];
+        for(int x=0;x<w;x++)out[x]=tmp[x];
+        for(int y=1;y<h-1;y++){int o=y*w;
+            for(int x=0;x<w;x++)out[o+x]=mix3(tmp[o-w+x],tmp[o+x],tmp[o+w+x]);}
+        for(int x=0;x<w;x++)out[(h-1)*w+x]=tmp[(h-1)*w+x];
+        return out;
+    }
+    private static int mix3(int a,int b,int c){
+        return 0xff000000|(((((a>>>16)&255)+2*((b>>>16)&255)+((c>>>16)&255))>>2)<<16)
+                |(((((a>>>8)&255)+2*((b>>>8)&255)+((c>>>8)&255))>>2)<<8)
+                |((((a&255)+2*(b&255)+(c&255))>>2));
+    }
+    /** 围绕均值拉伸色度，把颜色喂向四色墨的饱和度。 */
+    private static int[] saturate(int[] px,float k){
+        int[] out=new int[px.length];
+        for(int i=0;i<px.length;i++){int p=px[i];
+            int r=(p>>>16)&255,g=(p>>>8)&255,b=p&255,mean=(r+g+b)/3;
+            int r2=(int)(mean+(r-mean)*k),g2=(int)(mean+(g-mean)*k),b2=(int)(mean+(b-mean)*k);
+            out[i]=0xff000000|(clamp8(r2)<<16)|(clamp8(g2)<<8)|clamp8(b2);
+        }
+        return out;
+    }
+    private static int clamp8(int v){return v<0?0:v>255?255:v;}
 }
