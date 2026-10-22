@@ -5,6 +5,10 @@ public final class ImageRaster {
     private static final int[] COLORS={0xff000000,0xffffffff,0xfff5cd00,0xffc80000};
     public static int color(int code){if(code<0||code>3)throw new IllegalArgumentException("颜色码错误");return COLORS[code];}
     public static byte[] quantize(int[] pixels,int width,int height,boolean binary,int threshold,boolean dither,int block){
+        return quantize(pixels,width,height,binary,threshold,dither,block,null);
+    }
+    /** bias: 四色调色板各项的距离倍率(1=原样)，用于白/黑/黄/红墨色倾向；null=原样。 */
+    public static byte[] quantize(int[] pixels,int width,int height,boolean binary,int threshold,boolean dither,int block,float[] bias){
         if(width<=0||height<=0||(long)width*height!=pixels.length||threshold<0||threshold>255)throw new IllegalArgumentException("图片参数错误");
         if(block>1) {
             if(!binary)return ImageBlocks.quantize(pixels,width,height,block,COLORS);
@@ -35,6 +39,7 @@ public final class ImageRaster {
                     for(int k=0;k<4;k++){int c=COLORS[k];
                         float dr=r-((c>>>16)&255),dg=g-((c>>>8)&255),db=b-(c&255);
                         float s=dr*dr+dg*dg+db*db;
+                        if(bias!=null)s*=bias[k];
                         if(s<score){score=s;best=k;}
                     }
                     if(dither){int c=COLORS[best];
