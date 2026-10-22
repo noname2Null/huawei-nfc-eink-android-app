@@ -33,7 +33,7 @@ public final class MainActivity extends Activity {
     private PixelPreview preview;
     private ProgressBar progress;
     private Button refresh,stop;
-    private Spinner duration,fit,power,poll,blocks,panelType,variantType,denoiseType,colorType,d4modeType,d4retryType;
+    private Spinner duration,fit,power,poll,blocks,panelType,variantType,denoiseType,colorType,d4modeType,d4retryType,sharpType,warmType,yellowType,redType,toneType;
     private CheckBox dither,binary;
     private SeekBar threshold;
     private Bitmap source,originalSource;
@@ -118,7 +118,7 @@ public final class MainActivity extends Activity {
         d4modeType=spinner(new String[]{"D4模式 完整刷新(80)","D4模式 实验1(00)","D4模式 实验2(01)","D4模式 实验3(81)"});
         d4modeType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("d4modeIdx",0));page.addView(d4modeType);
         d4retryType=spinner(new String[]{"D4失败仅重发 关","D4失败仅重发 1次","D4失败仅重发 2次"});
-        d4retryType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("d4retryIdx",1));page.addView(d4retryType);
+                sharpType=spinner(new String[]{"清晰度 关","清晰度 弱","清晰度 强"});         sharpType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("sharpLevel",0));page.addView(sharpType);         warmType=spinner(new String[]{"冷暖 偏冷","冷暖 原样","冷暖 偏暖"});         warmType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("warmLevel",1));page.addView(warmType);         yellowType=spinner(new String[]{"黄墨 原样","黄墨 多黄","黄墨 很多黄"});         yellowType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("yellowBias",0));page.addView(yellowType);         redType=spinner(new String[]{"红墨 原样","红墨 多红","红墨 很多红"});         redType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("redBias",0));page.addView(redType);         toneType=spinner(new String[]{"明暗 偏暗","明暗 原样","明暗 偏亮"});         toneType.setSelection(getSharedPreferences("refresh-settings",MODE_PRIVATE).getInt("toneLevel",1));page.addView(toneType);
         page.addView(text("D4模式为实验位：非80值可能挂起刷新，重贴复位即可。重试仅在传图成功后生效。",12,0xff68766e));
         preview=new PixelPreview(this);preview.setContentDescription("最终写入像素预览，仅黑白黄红；点击放大 · 双指缩放");page.addView(preview,new LinearLayout.LayoutParams(-1,dp(250)));
         preview.setOnClickListener(v->showPixels());
@@ -191,7 +191,7 @@ public final class MainActivity extends Activity {
         if(source==null||busy||destroyed||editingCrop)return;
         final int token=++revision,angle=rotation,block=blockSizes[blocks.getSelectedItemPosition()],level=threshold.getProgress();final boolean cover=fit.getSelectedItemPosition()==1,noise=dither.isChecked(),mono=binary.isChecked(),hasCrop=cropped;final Bitmap input=source;final String chosenPanel=selectedPanelType();
         prepared=null;preparing=true;controls();imageInfo.setText("正在生成四色预览…");
-        new Thread(()->{try{PanelType.variant=variantType.getSelectedItemPosition()+1;PanelImage.Prepared image=PanelImage.prepare(input,angle,cover,noise,block,mono,level,hasCrop,chosenPanel,denoiseType.getSelectedItemPosition(),colorType.getSelectedItemPosition());
+        new Thread(()->{try{PanelType.variant=variantType.getSelectedItemPosition()+1;PanelImage.Prepared image=PanelImage.prepare(input,angle,cover,noise,block,mono,level,hasCrop,chosenPanel,new int[]{denoiseType.getSelectedItemPosition(),colorType.getSelectedItemPosition(),sharpType.getSelectedItemPosition(),warmType.getSelectedItemPosition()-1,yellowType.getSelectedItemPosition(),redType.getSelectedItemPosition(),toneType.getSelectedItemPosition()-1});
             main.post(()->{if(token!=revision||destroyed)return;prepared=image;preview.setImage(image.preview);imageInfo.setText(imageName+" · 552×768 · "+image.packed.length+" 字节\n"+image.settings);preparing=false;controls();});
         }catch(Throwable e){main.post(()->{if(token!=revision||destroyed)return;preparing=false;controls();imageInfo.setText("预览失败："+e.getMessage());});}},"image-preview").start();
     }
