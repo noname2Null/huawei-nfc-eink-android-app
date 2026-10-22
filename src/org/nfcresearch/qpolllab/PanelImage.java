@@ -63,8 +63,8 @@ public final class PanelImage {
         Matrix rotate=new Matrix();rotate.setRotate(rotation);
         return Bitmap.createBitmap(source,0,0,source.getWidth(),source.getHeight(),rotate,true);
     }
-    /** quality: 0=原始；1=消噪·细腻(量化前轻模糊)；2=还原·色彩(量化前饱和度拉升)。 */
-    public static Prepared prepare(Bitmap source,int rotation,boolean cover,boolean dither,int block,boolean binary,int threshold,boolean cropped,String panelType,int quality) {
+    /** quality: 0=原始；1=消噪·细腻；2=还原·色彩。denoiseLevel 0~2=模糊1~3遍；colorLevel 0~2=饱和1.2~1.6。 */
+    public static Prepared prepare(Bitmap source,int rotation,boolean cover,boolean dither,int block,boolean binary,int threshold,boolean cropped,String panelType,int quality,int denoiseLevel,int colorLevel) {
         if(block>1)dither=false;
         Bitmap input=rotated(source,rotation);
         Bitmap fitted=Bitmap.createBitmap(552,768,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(fitted);canvas.drawColor(Color.WHITE);
@@ -73,13 +73,13 @@ public final class PanelImage {
         canvas.drawBitmap(input,null,new RectF((552-w)/2,(768-h)/2,(552+w)/2,(768+h)/2),new Paint(Paint.FILTER_BITMAP_FLAG));
         int[] pixels=new int[552*768];
         fitted.getPixels(pixels,0,552,0,0,552,768);
-        if(quality==1)pixels=blur(blur(pixels,552,768),552,768);
-        else if(quality==2)pixels=saturate(pixels,1.4f);
+        if(quality==1){for(int i=0;i<1+Math.max(0,Math.min(2,denoiseLevel));i++)pixels=blur(pixels,552,768);}
+        else if(quality==2)pixels=saturate(pixels,1.2f+0.2f*Math.max(0,Math.min(2,colorLevel)));
         byte[] codes=ImageRaster.quantize(pixels,552,768,binary,threshold,dither,block,quality);
         PanelType type=panelType.isEmpty()?PanelType.A1:PanelType.parse(panelType);
         byte[] packed=type.pack(codes);
         Bitmap image=Bitmap.createBitmap(type.preview(packed),552,768,Bitmap.Config.ARGB_8888);
-        String settings="屏幕："+(panelType.isEmpty()?"尚未选择":panelType)+" · "+(binary?"黑白二值化 · 阈值 "+threshold:"黑白黄红四色")+" · 简化："+(block==1?"原始细节":block+"×"+block+" 色块")+" · 抖动："+(dither?"开启":"关闭")+" · 画质："+(quality==0?"原始":quality==1?"消噪·细腻":"还原·色彩")+" · "+(cropped?"已手动裁切 · ":"")+"旋转 "+rotation+"° · "+(cover?"填满":"留白");
+        String settings="屏幕："+(panelType.isEmpty()?"尚未选择":panelType)+" · "+(binary?"黑白二值化 · 阈值 "+threshold:"黑白黄红四色")+" · 简化："+(block==1?"原始细节":block+"×"+block+" 色块")+" · 抖动："+(dither?"开启":"关闭")+" · 画质："+(quality==0?"原始":quality==1?"消噪·细腻[模糊"+(1+Math.max(0,Math.min(2,denoiseLevel)))+"遍]":"还原·色彩[饱和"+String.format("%.1f",1.2f+0.2f*Math.max(0,Math.min(2,colorLevel)))+"]")+" · "+(cropped?"已手动裁切 · ":"")+"旋转 "+rotation+"° · "+(cover?"填满":"留白");
         return new Prepared(image,packed,settings,panelType);
     }
     /** [1,2,1]/4 可分离模糊，去高频噪点。 */
