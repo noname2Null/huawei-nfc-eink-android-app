@@ -63,8 +63,9 @@ public final class PanelImage {
         Matrix rotate=new Matrix();rotate.setRotate(rotation);
         return Bitmap.createBitmap(source,0,0,source.getWidth(),source.getHeight(),rotate,true);
     }
-    /** denoiseLevel 0~3=量化前模糊遍数(0=原样)；colorLevel 0~3=饱和度1.0~1.3(0=原样)。两档独立、可叠加。 */
-    public static Prepared prepare(Bitmap source,int rotation,boolean cover,boolean dither,int block,boolean binary,int threshold,boolean cropped,String panelType,int denoiseLevel,int colorLevel) {
+    /** adj 七元调节(全部0=原样)：{消噪模糊0~3, 饱和度0~3(×1.0~1.3), 清晰度0~2, 冷暖-1~1, 黄墨倾向0~2, 红墨倾向0~2, 明暗-1~1}。可任意叠加。 */
+    public static Prepared prepare(Bitmap source,int rotation,boolean cover,boolean dither,int block,boolean binary,int threshold,boolean cropped,String panelType,int[] adj) {
+        int denoiseLevel=adj[0],colorLevel=adj[1],sharpLevel=adj[2],warmLevel=adj[3],yellowBias=adj[4],redBias=adj[5],toneLevel=adj[6];
         if(block>1)dither=false;
         Bitmap input=rotated(source,rotation);
         Bitmap fitted=Bitmap.createBitmap(552,768,Bitmap.Config.ARGB_8888);Canvas canvas=new Canvas(fitted);canvas.drawColor(Color.WHITE);
@@ -75,12 +76,18 @@ public final class PanelImage {
         fitted.getPixels(pixels,0,552,0,0,552,768);
         int passes=Math.max(0,Math.min(3,denoiseLevel));
         for(int i=0;i<passes;i++)pixels=blur(pixels,552,768);
+        if(sharpLevel>0){int[] soft=blur(pixels,552,768);pixels=sharpen(pixels,soft,0.3f*sharpLevel);}
+        if(warmLevel!=0)pixels=warmify(pixels,warmLevel);
         pixels=saturate(pixels,1f+0.1f*Math.max(0,Math.min(3,colorLevel)));
-        byte[] codes=ImageRaster.quantize(pixels,552,768,binary,threshold,dither,block);
+        float[] bias={1f,1f,1f,1f};
+        bias[2]*=1f-0.12f*Math.max(0,Math.min(2,yellowBias));
+        bias[3]*=1f-0.12f*Math.max(0,Math.min(2,redBias));
+        if(toneLevel>0)bias[1]*=0.88f;else if(toneLevel<0)bias[0]*=0.88f;
+        byte[] codes=ImageRaster.quantize(pixels,552,768,binary,threshold,dither,block,bias);
         PanelType type=panelType.isEmpty()?PanelType.A1:PanelType.parse(panelType);
         byte[] packed=type.pack(codes);
         Bitmap image=Bitmap.createBitmap(type.preview(packed),552,768,Bitmap.Config.ARGB_8888);
-        String settings="屏幕："+(panelType.isEmpty()?"尚未选择":panelType)+" · "+(binary?"黑白二值化 · 阈值 "+threshold:"黑白黄红四色")+" · 简化："+(block==1?"原始细节":block+"×"+block+" 色块")+" · 抖动："+(dither?"开启":"关闭")+" · 消噪[模糊"+Math.max(0,Math.min(3,denoiseLevel))+"遍] · 色彩[饱和×"+String.format("%.1f",1f+0.1f*Math.max(0,Math.min(3,colorLevel)))+"] · "+(cropped?"已手动裁切 · ":"")+"旋转 "+rotation+"° · "+(cover?"填满":"留白");
+        String settings="屏幕："+(panelType.isEmpty()?"尚未选择":panelType)+" · "+(binary?"黑白二值化 · 阈值 "+threshold:"黑白黄红四色")+" · 简化："+(block==1?"原始细节":block+"×"+block+" 色块")+" · 抖动："+(dither?"开启":"关闭")+" · 消噪["+Math.max(0,Math.min(3,denoiseLevel))+"] · 饱和["+String.format("%.1f",1f+0.1f*Math.max(0,Math.min(3,colorLevel)))+"] · 清晰["+Math.max(0,Math.min(2,sharpLevel))+"] · 冷暖["+warmLevel+"] · 黄["+Math.max(0,Math.min(2,yellowBias))+"] · 红["+Math.max(0,Math.min(2,redBias))+"] · 明暗["+toneLevel+"] · "+(cropped?"已手动裁切 · ":"")+"旋转 "+rotation+"° · "+(cover?"填满":"留白");
         return new Prepared(image,packed,settings,panelType);
     }
     /** [1,2,1]/4 可分离模糊，去高频噪点。 */
@@ -100,6 +107,27 @@ public final class PanelImage {
         return 0xff000000|(((((a>>>16)&255)+2*((b>>>16)&255)+((c>>>16)&255))>>2)<<16)
                 |(((((a>>>8)&255)+2*((b>>>8)&255)+((c>>>8)&255))>>2)<<8)
                 |((((a&255)+2*(b&255)+(c&255))>>2));
+    }
+    /** 清晰度：原图 + k×(原图-柔焦)，经典反锐化掩模。 */
+    private static int[] sharpen(int[] px,int[] soft,float k){
+        int[] out=new int[px.length];
+        for(int i=0;i<px.length;i++){int p=px[i],s=soft[i];
+            int r=clamp8(((p>>>16)&255)+(int)((((p>>>16)&255)-((s>>>16)&255))*k));
+            int g=clamp8(((p>>>8)&255)+(int)((((p>>>8)&255)-((s>>>8)&255))*k));
+            int b=clamp8((p&255)+(int)(((p&255)-(s&255))*k));
+            out[i]=0xff000000|(r<<16)|(g<<8)|b;
+        }
+        return out;
+    }
+    /** 冷暖：>0 偏暖(加红减蓝)，<0 偏冷。 */
+    private static int[] warmify(int[] px,int warm){
+        int[] out=new int[px.length];
+        float rw=1+0.07f*warm,bw=1-0.07f*warm;
+        for(int i=0;i<px.length;i++){int p=px[i];
+            int r=clamp8((int)(((p>>>16)&255)*rw)),g=(p>>>8)&255,b=clamp8((int)(((p&255))*bw));
+            out[i]=0xff000000|(r<<16)|(g<<8)|b;
+        }
+        return out;
     }
     /** 围绕均值拉伸色度，把颜色喂向四色墨的饱和度。 */
     private static int[] saturate(int[] px,float k){
