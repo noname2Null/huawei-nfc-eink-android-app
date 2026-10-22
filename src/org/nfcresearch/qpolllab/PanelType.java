@@ -44,11 +44,12 @@ public enum PanelType {
         if(this==A1)return raw.clone();
         final int rows=PanelProtocol.WIDTH,stride=PanelProtocol.HEIGHT/4;
         int[] fwd=new int[rows];
-        int[] inv=new int[rows];
-        for(int row=0;row<rows;row++){ fwd[row]=target(row,rows); inv[fwd[row]]=row; }
+        for(int row=0;row<rows;row++) fwd[row]=target(row,rows);
         byte[] out=new byte[raw.length];
         for(int row=0;row<rows;row++){
-            int from=inverse?inv[row]:row;
+            // 正变换(打包)=散布 out[fwd[row]]=raw[row]；逆变换(预览)=回收 out[row]=raw[fwd[row]]。
+            // 两者都用 fwd 作源下标；切勿用"位置逆置换"（对非自逆置换会二次乱序，预览即花屏）。
+            int from=inverse?fwd[row]:row;
             int to=inverse?row:fwd[row];
             System.arraycopy(raw,from*stride,out,to*stride,stride);
         }
